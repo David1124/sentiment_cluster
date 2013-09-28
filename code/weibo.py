@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 #coding=utf8
+#Author: Wei Guannan, Dong Tiancheng
 
 import re
 import sys
