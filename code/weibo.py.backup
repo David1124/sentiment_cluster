@@ -1,0 +1,132 @@
+#!/usr/bin/env python
+#coding=utf8
+
+import re
+import sys
+sys.path.append("./jieba")
+import jieba
+from numpy import array
+from scipy.cluster.vq import vq, kmeans, whiten
+
+weibo_src = []
+weibo_seg = []
+sentiment_result = []
+
+class WSentiment:
+	def __init__(self):
+		self.pos_word = ""
+		self.neg_word = ""
+		self.pos = ""
+		self.neg = ""
+		self.result = ""
+
+	def add_pos_word(self, w):
+		self.pos_word += w + ","
+
+	def add_neg_word(self, w):
+		self.neg_word += w + ","
+	
+	def set_pos(self,_pos):
+		self.pos = _pos
+	
+	def set_neg(self, _neg):
+		self.neg = _neg
+
+	def set_res(self, _res):
+		self.result = _res
+
+class SToken:
+	def __init__(self, _word, _start, _end):
+		self.word = _word
+		self.start = _start
+		self.end = _end
+	
+	def __repr__(self):
+		return "word: %s, start: %s, end: %s" % (self.word, self.start, self.end)
+
+	__str__ = __repr__
+
+class WSGraph:
+	pass
+
+def load_sentiment_dict(filename):
+	t = open(filename).read().decode("gbk").split("\n")[:-1]
+	return map(lambda x: x[:-2], t)
+
+def test_dict(dict, word):
+	if word in dict:
+		print "T"
+	else:
+		print "F"
+
+positive = load_sentiment_dict("positive_dict.txt")
+negtive = load_sentiment_dict("negtive_dict.txt")
+
+
+f = open("../src_data/ios7_weibo_data_130915", "r")
+raw = f.read().decode("utf8")
+f.close()
+rows = raw.split("\n")[1:-1]
+for line in rows:
+	content = line.split("\"")[7]
+	if re.search("ios", content, re.IGNORECASE):
+		weibo_src.append(content)
+
+jieba.set_dictionary('jieba/extra_dict/dict.txt.big')
+for each in weibo_src:
+	token = []
+	seg = jieba.tokenize(each)
+	for tk in seg:
+		token.append(SToken(tk[0], tk[1], tk[2]))
+	weibo_seg.append(token)
+
+for x in weibo_seg:
+	for t in x:
+		print unicode(t)
+	
+for each in weibo_seg:
+	ws = WSentiment()
+	pos = 0
+	neg = 0
+	for tk in each:
+		word = tk[1]
+		if word in positive:
+			pos += 1
+			ws.add_pos_word(word)
+		if word in negtive:
+			neg += 1
+			ws.add_neg_word(word)
+	#print pos, neg, pos-neg
+	ws.set_pos(pos)
+	ws.set_neg(neg)
+	ws.set_res(pos-neg)
+	sentiment_result.append(ws)
+
+features = array(map(lambda x: [x.pos-x.neg], sentiment_result))
+whitened = whiten(features)
+center = kmeans(whitened, 3)[0]
+result = vq(features, center)
+print result
+
+cluster_res = result[0]
+
+#generate for R
+c1 = "c1 <- c(" 
+c2 = "c2 <- c(" 
+c3 = "c3 <- c(" 
+for i in range(0, len(cluster_res)):
+	if cluster_res[i] == 0:
+		c1 += str(sentiment_result[i].result) + ","
+	if cluster_res[i] == 1:
+		c2 += str(sentiment_result[i].result) + ","
+	if cluster_res[i] == 2:
+		c3 += str(sentiment_result[i].result) + ","
+
+c1 = c1[:-1] + ")"
+c2 = c2[:-1] + ")"
+c3 = c3[:-1] + ")"
+
+print c1
+print c2
+print c3
+
